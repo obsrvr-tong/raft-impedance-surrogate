@@ -1,0 +1,24 @@
+# Makes the `surrogate` package importable from notebooks, tests and the API:
+#   pip install -e ml        (run once from the repo root, inside the `ml` environment)
+# "-e" (editable) links to this folder instead of copying it, so code changes apply at once.
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "impedance-surrogate"
+version = "1.0.0"
+description = "Surrogate models for MISS3D soil-impedance matrices of rigid surface rafts (dataset v1)"
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+train = ["scipy", "scikit-learn", "joblib", "pandas", "matplotlib"]
+gpu = ["torch", "gpytorch"]
+api = ["fastapi", "uvicorn"]
+
+[tool.setuptools]
+packages = ["surrogate"]
+
+[tool.setuptools.package-data]
+surrogate = ["viewer_template.html"]

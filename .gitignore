@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.ipynb_checkpoints/
+
+# Secrets and local environments
+.env
+.venv/
+
+# Data, meshes and generated cases (not published)
+automation/datasets/
+automation/cases/
+automation/meshes/
+*.med
+*.mess
+*.rmed
+*.npz
+*.tar.gz
+dataset_v1_*
+
+# Models: only the release model is published
+ml/models/*
+!ml/models/impedance_surrogate_v1.npz
+
+# Locally built viewer (the published one is docs/index.html)
+ml/viewer/

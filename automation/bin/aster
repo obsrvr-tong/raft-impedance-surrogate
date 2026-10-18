@@ -1,0 +1,21 @@
+#!/bin/bash
+# aster: run a command inside the salome_meca container with code_aster ready to use
+# Usage examples:
+#   aster run_aster --version
+#   aster run_aster job.export
+#   aster bash                  (opens a shell inside the container)
+
+# --- Settings: the only lines to change for a different image or version ---
+SIF=$HOME/containers/salome_meca-lgpl-2024.1.0-1-20240327-scibian-11.sif
+ENV=/opt/salome_meca/V2024.1.0_scibian_univ
+BIN=$ENV/tools/Code_aster_stable-1670/bin
+
+# --- Run: enter the container and set it up, then run what you typed ---
+apptainer exec --bind /tmp:/local00 "$SIF" bash -c '
+  BIN="$1"; ENV="$2"; shift 2
+  cmd=("$@"); set --
+  export PATH="$BIN:$PATH"
+  source "$ENV/salome_prerequisites.sh"
+  source "$ENV/salome_modules.sh"
+  exec "${cmd[@]}"
+' aster "$BIN" "$ENV" "$@"

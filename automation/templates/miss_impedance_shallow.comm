@@ -1,0 +1,137 @@
+# Template: MISS3D impedance of a rigid surface raft on a layered soil
+# Derived from a hand-made, verified reference model
+# Placeholders (dollar sign + NAME) are filled by codeaster_auto.comm.render_comm:
+#   SOIL_KEYWORDS  COUCHE/MATERIAU of DEFI_SOL_MISS (codeaster_auto.soil)
+#   FREQ_MIN, FREQ_MAX, FREQ_PAS  CALC_MISS frequency range [Hz]
+# Mesh requirements: element group RADIER (raft), node group NRADIER (reference node)
+# Units: mesh UNITE=20, impedances UNITE 7, forces UNITE 8 (see codeaster_auto.export)
+
+DEBUT(identifier='0:1',)
+
+MA1 = LIRE_MAILLAGE(identifier='1:1',
+                    UNITE=20)
+
+MA1 = DEFI_GROUP(identifier='2:1',
+                 reuse=MA1,
+                 CREA_GROUP_MA=_F(NOM='TOUT_FONDA',
+                                  UNION=('RADIER', )),
+                 CREA_GROUP_NO=_F(CRIT_NOEUD='TOUS',
+                                  GROUP_MA=('TOUT_FONDA', ),
+                                  NOM=('TOUT_FONDA', )),
+                 MAILLAGE=MA1)
+
+MA1 = MODI_MAILLAGE(identifier='3:1',
+                    reuse=MA1,
+                    MAILLAGE=MA1,
+                    ORIE_NORM_COQUE=_F(GROUP_MA=('TOUT_FONDA', ),
+                                       GROUP_NO=('TOUT_FONDA', ),
+                                       VECT_NORM=(0.0, 0.0, -1.0)))
+
+MO2 = AFFE_MODELE(identifier='4:1',
+                  AFFE=_F(GROUP_MA=('TOUT_FONDA', ),
+                          MODELISATION=('DKT', ),
+                          PHENOMENE='MECANIQUE'),
+                  MAILLAGE=MA1)
+
+CE2 = AFFE_CARA_ELEM(identifier='5:1',
+                     COQUE=_F(EPAIS=0.001,
+                              GROUP_MA=('RADIER', )),
+                     MODELE=MO2)
+
+MT_RADNP = DEFI_MATERIAU(identifier='6:1',
+                         ELAS=_F(ALPHA=1e-05,
+                                 AMOR_HYST=0.07,
+                                 E=10.0,
+                                 NU=0.2,
+                                 RHO=1e-09),
+                         INFO=1)
+
+MT2 = AFFE_MATERIAU(identifier='7:1',
+                    AFFE=_F(GROUP_MA=('TOUT_FONDA', ),
+                            MATER=(MT_RADNP, )),
+                    MAILLAGE=MA1)
+
+CL_INT2 = AFFE_CHAR_MECA(identifier='8:1',
+                         DDL_IMPO=_F(GROUP_NO=('NRADIER', ),
+                                     BLOCAGE = ('DEPLACEMENT','ROTATION')),
+                         LIAISON_SOLIDE=_F(GROUP_NO=('TOUT_FONDA', )),
+                         MODELE=MO2)
+
+
+MELE2 = CALC_MATR_ELEM(identifier='10:1',
+                       CARA_ELEM=CE2,
+                       CHAM_MATER=MT2,
+                       CHARGE=(CL_INT2, ),
+                       MODELE=MO2,
+                       OPTION='MASS_MECA')
+
+KELE2 = CALC_MATR_ELEM(identifier='11:1',
+                       CALC_ELEM_MODELE='OUI',
+                       CARA_ELEM=CE2,
+                       CHAM_MATER=MT2,
+                       CHARGE=(CL_INT2, ),
+                       MODELE=MO2,
+                       MODE_FOURIER=0,
+                       OPTION='RIGI_MECA')
+
+NUM2 = NUME_DDL(identifier='12:1',
+                MATR_RIGI=(KELE2, ))
+
+MASS2 = ASSE_MATRICE(identifier='13:1',
+                     MATR_ELEM=MELE2,
+                     NUME_DDL=NUM2)
+
+KASS2 = ASSE_MATRICE(identifier='14:1',
+                     MATR_ELEM=KELE2,
+                     NUME_DDL=NUM2)
+
+MODSTA = MODE_STATIQUE(identifier='15:1',
+                       INFO=2,
+                       MATR_MASS=MASS2,
+                       MATR_RIGI=KASS2,
+                       MODE_STAT=_F(GROUP_NO=('NRADIER', ),
+                                    TOUT_CMP='OUI'),
+                       SOLVEUR=_F(ELIM_LAGR='NON',
+                                  METHODE='MULT_FRONT',
+                                  NPREC=8,
+                                  RENUM='METIS',
+                                  STOP_SINGULIER='OUI'))
+
+BAMO2 = DEFI_BASE_MODALE(identifier='16:1',
+                         NUME_REF=NUM2,
+                         ORTHO='NON',
+                         RITZ=(_F(MODE_MECA=(MODSTA, ),
+                                  NMAX_MODE=(0, )),
+                               _F(MODE_INTF=MODSTA,
+                                  NMAX_MODE=(1000000, ))),
+                         SOLVEUR=_F(ELIM_LAGR='NON',
+                                    METHODE='MULT_FRONT',
+                                    NPREC=8,
+                                    RENUM='METIS',
+                                    STOP_SINGULIER='NON'))
+
+TABSOL = DEFI_SOL_MISS(identifier='17:1',
+                       $SOIL_KEYWORDS)
+
+CALC_MISS(identifier='18:1',
+          BASE_MODALE=MODSTA,
+          GROUP_MA_INTERF=('TOUT_FONDA', ),
+          PARAMETRE=_F(ALLU=0.0,
+                       AUTO='OUI',
+                       FREQ_MAX=$FREQ_MAX,
+                       FREQ_MIN=$FREQ_MIN,
+                       FREQ_PAS=$FREQ_PAS,
+                       ISSF='NON',
+                       OPTION_DREF='OUI',
+                       SURF='OUI',
+                       TYPE='ASCII',
+                       Z0=0.0),
+          PROJET='MODELE',
+          TABLE_SOL=TABSOL,
+          TYPE_RESU='FICHIER',
+          UNITE_RESU_FORC=8,
+          UNITE_RESU_IMPE=7,
+          VERSION='V6.7')
+
+FIN(identifier='19:1',
+    )

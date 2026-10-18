@@ -1,0 +1,7 @@
+mesh_id,file,L_x,L_y,centroid_x,centroid_y,nradier_x,nradier_y,n_cells,mean_edge_m,notes
+ref33x31,meshes/ref33x31.med,33,31,16.5,15.5,17.671,16.307,518,2.13,NRADIER 1.17 m / 0.81 m off the centroid
+m30x15,meshes/m30x15.med,30,15,0,0,0,0,100,2.25,10x10 QUAD4 (3 x 1.5 m)
+m45x15,meshes/m45x15.med,45,15,0,0,0,0,400,1.5,20x20 QUAD4 (2.25 x 0.75 m)
+m60x15,meshes/m60x15.med,60,15,0,0,0,0,400,1.88,20x20 QUAD4 (3 x 0.75 m)
+m80x20,meshes/m80x20.med,80,20,0,0,0,0,900,1.67,30x30 QUAD4 (2.67 x 0.67 m)
+m120x75,meshes/m120x75.med,120,75,0,0,0,0,1600,2.44,40x40 QUAD4 (3 x 1.875 m)

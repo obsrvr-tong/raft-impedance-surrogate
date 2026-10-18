@@ -1,0 +1,30 @@
+# The ML environment on Windows, as built on 4 October 2026 (RTX 5070 Ti, driver 616.64).
+# Rebuild it from scratch with:
+#   conda env create -f ml/environment.yml
+#   conda activate ml
+#   pip install -e ml            # makes `import surrogate` work everywhere
+# Milestone 5 added three packages; into an existing environment:
+#   pip install fastapi==0.142.2 uvicorn==0.53.0 httpx==0.28.1
+# Versions are pinned so that results can be reproduced; update them deliberately, not by accident.
+name: ml
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - numpy==2.5.3
+      - scipy==1.18.1
+      - pandas==3.0.6
+      - scikit-learn==1.9.1
+      - matplotlib==3.11.2
+      - h5py==3.16.0
+      - jupyter==1.1.1
+      - ipykernel==7.4.0
+      - --extra-index-url https://download.pytorch.org/whl/cu132
+      - torch==2.14.1+cu132
+      - gpytorch==1.15.2
+      # Milestone 5: the prediction API and its test client
+      - fastapi==0.142.2
+      - uvicorn==0.53.0
+      - httpx==0.28.1

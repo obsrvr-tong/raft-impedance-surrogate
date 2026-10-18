@@ -1,0 +1,16 @@
+{
+  "dataset": "probe",
+  "description": "Run-time probe for new meshes: dataset v1 settings except 5 frequencies (0.2-33.2 Hz every 8.25 Hz) and a single hold-out point (the same soil as <mesh>_test0001 of v1). Output goes to datasets/probe, never into the v1 dataset.",
+  "site": "inputs/site_v1.csv",
+  "meshes": "inputs/meshes.csv",
+  "template": "templates/miss_impedance_shallow.comm",
+  "freq_min": 0.2,
+  "freq_max": 33.2,
+  "freq_step": 8.25,
+  "g_factor_min": 0.6667,
+  "g_factor_max": 1.5,
+  "n_train": 0,
+  "n_test": 1,
+  "seed": 2026,
+  "substratum_thickness": 100.0
+}

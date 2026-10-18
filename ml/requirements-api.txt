@@ -1,0 +1,4 @@
+# Everything the prediction API needs (the container and any server): no scikit-learn, no PyTorch.
+numpy==2.5.3
+fastapi==0.142.2
+uvicorn==0.53.0

@@ -1,0 +1,764 @@
+<title>Raft Impedance Surrogate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: a drawing-office instrument. Inputs on the left as the site sees them (borehole log, raft
+   plan), the result sheet on the right (summary table first, then the selected term's curves). */
+:root {
+  --paper: #f2f4f6; --sheet: #ffffff; --ink: #16202a; --ink-2: #56636f; --rule: #d5dce2;
+  --accent: #1c58b0; --accent-soft: #e4ecf8; --band: rgba(28, 88, 176, 0.17); --truth: #16202a;
+  --warn: #8f4a08; --warn-bg: #fbecd9; --ok: #276141; --ok-bg: #e2f0e7;
+  --track: #d5dce2; --track-in: #94b0da;
+  --ramp-0: #efe2c4; --ramp-1: #c8b089; --ramp-2: #8d9884; --ramp-3: #4a5866;
+  --f-display: "Saira Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "Azeret Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10161c; --sheet: #172029; --ink: #e3e8ed; --ink-2: #9aa6b2; --rule: #2a3541;
+    --accent: #72a5f2; --accent-soft: #1d2d44; --band: rgba(114, 165, 242, 0.22); --truth: #e3e8ed;
+    --warn: #f2ad62; --warn-bg: #3a2914; --ok: #82d09f; --ok-bg: #163021;
+    --track: #2a3541; --track-in: #3f6296;
+    --ramp-0: #3c3628; --ramp-1: #6d6047; --ramp-2: #6c7c71; --ramp-3: #aab8c6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10161c; --sheet: #172029; --ink: #e3e8ed; --ink-2: #9aa6b2; --rule: #2a3541;
+  --accent: #72a5f2; --accent-soft: #1d2d44; --band: rgba(114, 165, 242, 0.22); --truth: #e3e8ed;
+  --warn: #f2ad62; --warn-bg: #3a2914; --ok: #82d09f; --ok-bg: #163021;
+  --track: #2a3541; --track-in: #3f6296;
+  --ramp-0: #3c3628; --ramp-1: #6d6047; --ramp-2: #6c7c71; --ramp-3: #aab8c6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: 0.01em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.6vw, 3.1rem); line-height: 1; font-weight: 700; }
+h2 { font-size: 1.3rem; line-height: 1.1; }
+h3 { font-size: 1.05rem; }
+.eyebrow { font-family: var(--f-data); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.top { display: grid; gap: 10px; margin-bottom: 22px; }
+.lede { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.fact { font-family: var(--f-data); font-size: 0.78rem; padding: 4px 9px; border: 1px solid var(--rule); border-radius: 3px; background: var(--sheet); font-variant-numeric: tabular-nums; }
+.fact b { font-weight: 500; color: var(--accent); }
+.grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.inputs, .results, .card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; }
+.inputs { display: grid; gap: 0; }
+.block { padding: 16px 18px; border-bottom: 1px solid var(--rule); display: grid; gap: 12px; }
+.block:last-child { border-bottom: 0; }
+.block-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.hint { font-size: 0.8rem; color: var(--ink-2); margin: 0; }
+.soil { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: start; }
+#column { width: 104px; height: 330px; display: block; }
+.strata { display: grid; gap: 4px; }
+.srow { display: grid; grid-template-columns: 10px 3.4em minmax(0, 1fr) 4.4em; gap: 8px; align-items: center; min-height: 40px; }
+.sw { width: 10px; height: 26px; border-radius: 2px; border: 1px solid var(--rule); }
+.sname { display: grid; line-height: 1.15; }
+.sname label { font-family: var(--f-display); font-weight: 600; font-size: 1rem; }
+.sname span, .val small { font-family: var(--f-data); font-size: 0.66rem; color: var(--ink-2); }
+.val { font-family: var(--f-data); font-size: 0.82rem; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wide { display: grid; grid-template-columns: 7.2em minmax(0, 1fr) 4.4em; gap: 8px; align-items: center; }
+.wide label { font-size: 0.86rem; font-weight: 600; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; margin: 0;
+  --lo: 0%; --hi: 100%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, var(--track) 0 var(--lo), var(--track-in) var(--lo) var(--hi), var(--track) var(--hi) 100%); }
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, var(--track) 0 var(--lo), var(--track-in) var(--lo) var(--hi), var(--track) var(--hi) 100%); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 50%;
+  background: var(--sheet); border: 2px solid var(--accent); }
+input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--sheet); border: 2px solid var(--accent); }
+input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+#plan { width: 100%; height: 170px; display: block; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-data); font-size: 0.76rem; padding: 4px 9px; border-radius: 3px; border: 1px solid var(--rule);
+  background: var(--sheet); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.chip:focus-visible, select:focus-visible, button:focus-visible, tr[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select { width: 100%; font: inherit; font-size: 0.88rem; padding: 7px 8px; border-radius: 3px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); }
+.reset { justify-self: start; font: inherit; font-size: 0.86rem; padding: 6px 12px; border-radius: 3px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); cursor: pointer; }
+.reset:hover { border-color: var(--accent); }
+.results { display: grid; gap: 0; min-width: 0; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--rule); }
+.pill { font-size: 0.8rem; padding: 3px 9px; border-radius: 999px; font-weight: 500; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.timing { margin-left: auto; font-family: var(--f-data); font-size: 0.74rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; border-bottom: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { font-family: var(--f-data); font-weight: 500; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2);
+  text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--rule); font-size: 0.88rem; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--f-data); font-size: 0.84rem; text-align: right; }
+th.num { text-align: right; }
+td.term { font-family: var(--f-display); font-weight: 600; font-size: 1rem; }
+td.motion { color: var(--ink-2); }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+tbody tr[aria-selected="true"] td { background: var(--accent-soft); }
+tbody tr[aria-selected="true"] td.term { color: var(--accent); }
+.err-good { color: var(--ok); } .err-mid { color: var(--ink); } .err-bad { color: var(--warn); }
+.charts { padding: 16px 18px 18px; display: grid; gap: 10px; min-width: 0; }
+.chart-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.8rem; color: var(--ink-2); align-items: center; }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.key svg { display: block; }
+.panel { display: grid; gap: 2px; min-width: 0; }
+.readout { font-family: var(--f-data); font-size: 0.74rem; color: var(--ink-2); min-height: 1.3em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.readout b { color: var(--ink); font-weight: 500; }
+.chart { width: 100%; height: 210px; display: block; touch-action: pan-y; }
+.chart text, #plan text, #column text { font-family: var(--f-data); font-size: 10.5px; fill: var(--ink-2); }
+.chart .grid-line { stroke: var(--rule); stroke-width: 1; }
+.chart .axis { stroke: var(--ink-2); stroke-width: 1; }
+.chart .band { fill: var(--band); stroke: none; }
+.chart .line { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.chart .truth { fill: var(--sheet); stroke: var(--truth); stroke-width: 1.3; }
+.chart .cursor { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .dot { fill: var(--accent); stroke: var(--sheet); stroke-width: 1.5; }
+.chart .hit { fill: transparent; }
+.note { margin: 0; font-size: 0.78rem; color: var(--ink-2); }
+.card { margin-top: 20px; padding: 18px; display: grid; gap: 16px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 22px; }
+.card p { margin: 0; max-width: 68ch; }
+.card dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 0.88rem; }
+.card dt { color: var(--ink-2); }
+.card dd { margin: 0; font-variant-numeric: tabular-nums; }
+.card .col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.plan-line { stroke: var(--ink-2); stroke-width: 1; fill: none; opacity: 0.55; }
+.plan-raft { fill: var(--band); stroke: var(--accent); stroke-width: 2; }
+.plan-axis { stroke: var(--ink-2); stroke-width: 1.2; fill: none; }
+.col-line { stroke: var(--sheet); stroke-width: 1; }
+.col-tick { stroke: var(--ink-2); stroke-width: 1; }
+.col-rock { fill: url(#hatch); stroke: var(--ink-2); stroke-width: 1; }
+.hatch-line { stroke: var(--ink-2); stroke-width: 1; }
+@media (max-width: 960px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 460px) {
+  .wrap { padding-inline: 16px; }
+  .soil { grid-template-columns: 74px minmax(0, 1fr); }
+  #column { width: 74px; }
+  .srow { grid-template-columns: 8px 3em minmax(0, 1fr) 3.9em; gap: 6px; }
+  .wide { grid-template-columns: 5.6em minmax(0, 1fr) 4em; }
+  .chart { height: 180px; }
+  .timing { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Seismic soil–structure interaction · surrogate of MISS3D</div>
+    <h1>Raft Impedance Surrogate</h1>
+    <p class="lede">The 6 × 6 impedance of a rigid surface raft on a seven-stratum soil, 0.45–15 Hz, predicted by
+      Gaussian processes trained on MISS3D boundary-element simulations. Change the soil or the raft and the
+      curves and their 95 % band follow as you drag; load a held-out simulation to compare.</p>
+    <div class="facts" id="facts"></div>
+  </header>
+
+  <main class="grid">
+    <section class="inputs" aria-label="Inputs">
+      <div class="block">
+        <div class="block-h"><h2>Soil profile</h2><p class="hint">fill: shear-wave velocity</p></div>
+        <div class="soil">
+          <svg id="column" role="img" aria-label="Soil column drawn to scale"></svg>
+          <div class="strata" id="strata"></div>
+        </div>
+        <div class="wide" id="g-row"></div>
+      </div>
+      <div class="block">
+        <div class="block-h"><h2>Raft</h2><p class="hint">outlines: footprints in the training data</p></div>
+        <svg id="plan" role="img" aria-label="Raft plan drawn to scale"></svg>
+        <div class="wide" id="lx-row"></div>
+        <div class="wide" id="ly-row"></div>
+        <div class="chips" id="presets" aria-label="Footprints in the training data"></div>
+      </div>
+      <div class="block">
+        <div class="block-h"><h2>Check against MISS3D</h2></div>
+        <select id="holdout" aria-label="Hold-out simulation"></select>
+        <p class="hint" id="holdout-hint"></p>
+        <button class="reset" id="reset" type="button">Reset to the nominal soil</button>
+      </div>
+    </section>
+
+    <section class="results" aria-label="Predicted impedance">
+      <div class="status" id="status"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="charts" id="charts">
+        <div class="chart-h">
+          <h2 id="chart-title">Ux</h2>
+          <div class="legend">
+            <span class="key"><svg width="26" height="12" aria-hidden="true"><rect x="0" y="1" width="26" height="10" style="fill: var(--band)"></rect><line x1="0" y1="6" x2="26" y2="6" style="stroke: var(--accent); stroke-width: 2.2"></line></svg>surrogate, 95 % band</span>
+            <span class="key" id="key-truth"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="3.4" style="fill: var(--sheet); stroke: var(--truth); stroke-width: 1.3"></circle></svg>MISS3D</span>
+          </div>
+        </div>
+        <div class="panel"><div class="readout" id="read-0"></div><svg class="chart" id="chart-0"></svg></div>
+        <div class="panel"><div class="readout" id="read-1"></div><svg class="chart" id="chart-1"></svg></div>
+        <p class="note">Re K is the dynamic stiffness and Im K the radiation and material damping. Im K is negative
+          because MISS3D uses the time convention e<sup>−iωt</sup>. All terms refer to the raft centroid.</p>
+      </div>
+    </section>
+  </main>
+
+  <section class="card" aria-label="About the model">
+    <h2>About the model</h2>
+    <div class="card-grid">
+      <div class="col">
+        <h3>How it works</h3>
+        <p>Each term is split into its static value and a dimensionless shape, K(f) = K<sub>static</sub> × shape(f).
+          The logarithm of the static value and 20 principal-component weights of the shapes are each predicted by a
+          Gaussian process (Matérn 5/2 kernel, one length scale per input) on top of a linear trend in the inputs:
+          <span id="n-gp">28</span> GPs in all. The training set includes every raft turned by 90°, which on layered
+          soil is the same physical case.</p>
+        <p>The band combines two sources: the uncertainty of the GPs, each computed from its nearest training
+          cases (which can only overstate it), and the detail the 20 principal components leave out, measured on
+          the training curves. Most of the remaining error is that second part.</p>
+      </div>
+      <div class="col">
+        <h3>Training</h3>
+        <dl id="train-dl"></dl>
+      </div>
+      <div class="col">
+        <h3>Accuracy on held-out simulations</h3>
+        <dl id="test-dl"></dl>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script id="viewer-data" type="application/json">__VIEWER_DATA__</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("viewer-data").textContent);
+const M = D.model, F = D.freqs, NF = F.length, NT = M.n_terms, NG = M.n_gp, ND = M.d, N = M.n, NC = M.n_comp;
+const NN = Math.min(M.n_neighbours || 128, N);   // nearest training cases used for each GP's variance
+const NDRAW = 240, Z95 = 1.959964;
+
+function decode(b64, Type) {
+  const s = atob(b64), u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return new Type(u.buffer);
+}
+const X = decode(M.X, Float64Array), ALPHA = decode(M.alpha, Float64Array), LS = decode(M.ls, Float64Array);
+const TREND = decode(M.trend, Float64Array), PM = decode(M.pca_mean, Float64Array), PC = decode(M.pca_comp, Float64Array);
+const RSTD = M.rstd ? decode(M.rstd, Float64Array) : new Float64Array(PM.length);   // PCA truncation error per value
+const XS = [];                            // training inputs in each GP's length-scale units
+for (let c = 0; c < NG; c++) {
+  const a = new Float64Array(N * ND);
+  for (let i = 0; i < N; i++) for (let j = 0; j < ND; j++) a[i * ND + j] = X[i * ND + j] / LS[c * ND + j];
+  XS.push(a);
+}
+const HO = D.holdout ? { ...D.holdout, X: decode(D.holdout.X, Float32Array), Y: decode(D.holdout.Y, Float32Array) } : null;
+
+const NAMES = ["t_L1", "t_L2", "t_L3", "t_L4", "t_L5", "t_L6", "t_L7", "g_factor", "L_x", "L_y"];
+const INFO = Object.fromEntries(D.inputs.map(o => [o.name, o]));
+const TERM_INFO = {
+  "Ux": ["Horizontal x", "MN/m"], "Uy": ["Horizontal y", "MN/m"], "Uz": ["Vertical", "MN/m"],
+  "Rx": ["Rocking about x", "MN·m/rad"], "Ry": ["Rocking about y", "MN·m/rad"], "Rz": ["Torsion", "MN·m/rad"],
+  "Ux-Ry": ["Sway x with rocking y", "MN/rad"], "Uy-Rx": ["Sway y with rocking x", "MN/rad"],
+};
+const termLabel = t => t.replace("-", "–");
+const MESHES = { m30x15: [30, 15], m45x15: [45, 15], m60x15: [60, 15], m80x20: [80, 20], ref33x31: [33, 31] };
+
+// ------------------------------------------------------------------ the model (same arithmetic as portable.py)
+const R2 = new Float64Array(N), KV = new Float64Array(N), IDX = new Int32Array(N);
+const matern = r => { const s = 2.23606797749979 * r; return (1 + s + s * s / 3) * Math.exp(-s); };
+
+function features(v) {
+  const x = [];
+  for (let j = 0; j < ND; j++) {
+    const raw = j < 7 ? v[j] : Math.log(v[j]);
+    x.push((raw - M.x_mean[j]) / M.x_scale[j]);
+  }
+  return x;
+}
+function nearest(m) {                      // first m entries of IDX: the m smallest R2 (quickselect)
+  for (let i = 0; i < N; i++) IDX[i] = i;
+  let lo = 0, hi = N - 1;
+  const k = m - 1;
+  while (lo < hi) {
+    const p = R2[IDX[(lo + hi) >> 1]];
+    let i = lo, j = hi;
+    while (i <= j) {
+      while (R2[IDX[i]] < p) i++;
+      while (R2[IDX[j]] > p) j--;
+      if (i <= j) { const t = IDX[i]; IDX[i] = IDX[j]; IDX[j] = t; i++; j--; }
+    }
+    if (k <= j) hi = j; else if (k >= i) lo = i; else break;
+  }
+}
+function nnStd(c) {                        // GP c's std conditioned on its NN nearest training cases
+  nearest(NN);
+  const Xc = XS[c], sv = M.signal_var[c], nz = M.noise[c] + 1e-10, m = NN;
+  const A = new Float64Array(m * m), b = new Float64Array(m);
+  for (let a = 0; a < m; a++) {
+    const ia = IDX[a] * ND;
+    b[a] = KV[IDX[a]];
+    A[a * m + a] = sv + nz;
+    for (let q = 0; q < a; q++) {
+      const iq = IDX[q] * ND;
+      let r2 = 0;
+      for (let j = 0; j < ND; j++) { const t = Xc[ia + j] - Xc[iq + j]; r2 += t * t; }
+      A[a * m + q] = sv * matern(Math.sqrt(r2));
+    }
+  }
+  for (let i = 0; i < m; i++) {            // Cholesky, lower triangle in place
+    for (let j = 0; j <= i; j++) {
+      let s = A[i * m + j];
+      for (let k = 0; k < j; k++) s -= A[i * m + k] * A[j * m + k];
+      A[i * m + j] = i === j ? Math.sqrt(Math.max(s, 1e-300)) : s / A[j * m + j];
+    }
+  }
+  let vv = 0;
+  for (let i = 0; i < m; i++) {            // L v = k*, then var = sv - v.v
+    let s = b[i];
+    for (let k = 0; k < i; k++) s -= A[i * m + k] * b[k];
+    b[i] = s / A[i * m + i];
+    vv += b[i] * b[i];
+  }
+  return Math.sqrt(Math.max(sv - vv, 0));
+}
+function gp(v) {
+  const xs = features(v), mean = new Float64Array(NG), std = new Float64Array(NG), q = new Float64Array(ND);
+  for (let c = 0; c < NG; c++) {
+    const Xc = XS[c], sv = M.signal_var[c], a0 = c * N;
+    for (let j = 0; j < ND; j++) q[j] = xs[j] / LS[c * ND + j];
+    let acc = 0;
+    for (let i = 0; i < N; i++) {
+      let r2 = 0;
+      const o = i * ND;
+      for (let j = 0; j < ND; j++) { const t = q[j] - Xc[o + j]; r2 += t * t; }
+      R2[i] = r2;
+      const k = sv * matern(Math.sqrt(r2));
+      KV[i] = k;
+      acc += k * ALPHA[a0 + i];
+    }
+    let t = TREND[c];
+    for (let j = 0; j < ND; j++) t += xs[j] * TREND[(j + 1) * NG + c];
+    mean[c] = M.y_mean[c] + M.y_std[c] * (M.mean0[c] + acc) + t;
+    std[c] = nnStd(c) * M.y_std[c];
+  }
+  return { mean, std };
+}
+function termCurve(G, k) {                 // term k from GP outputs: {re, im} over frequency, and s
+  const s = M.sign[k] * Math.exp(G[k]), re = new Float64Array(NF), im = new Float64Array(NF), W = NT * 2 * NF;
+  for (let p = 0; p < 2; p++) {
+    const out = p ? im : re, base = (2 * k + p) * NF;
+    for (let j = 0; j < NF; j++) {
+      let v = PM[base + j];
+      for (let c = 0; c < NC; c++) v += G[NT + c] * PC[c * W + base + j];
+      out[j] = v * s;
+    }
+  }
+  return { re, im, s };
+}
+function rng(seed) {                       // mulberry32 + Box-Muller: the same draws on every update
+  let a = seed >>> 0, spare = null;
+  const u = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  return () => {
+    if (spare !== null) { const s = spare; spare = null; return s; }
+    let x = 0, y = 0, r = 0;
+    do { x = 2 * u() - 1; y = 2 * u() - 1; r = x * x + y * y; } while (r === 0 || r >= 1);
+    const f = Math.sqrt(-2 * Math.log(r) / r);
+    spare = y * f; return x * f;
+  };
+}
+function quantile(sorted, q) {
+  const pos = q * (sorted.length - 1), i = Math.floor(pos), f = pos - i;
+  return i + 1 < sorted.length ? sorted[i] + f * (sorted[i + 1] - sorted[i]) : sorted[i];
+}
+function band(g, k) {                      // 2.5 and 97.5 % of Re and Im of term k, by sampling the GPs
+  const draw = rng(20261006), G = new Float64Array(NG);
+  const re = Array.from({ length: NF }, () => new Float64Array(NDRAW));
+  const im = Array.from({ length: NF }, () => new Float64Array(NDRAW));
+  for (let d = 0; d < NDRAW; d++) {
+    for (let c = 0; c < NG; c++) G[c] = g.mean[c] + g.std[c] * draw();
+    const cv = termCurve(G, k), r0 = 2 * k * NF, r1 = (2 * k + 1) * NF;
+    for (let j = 0; j < NF; j++) {
+      re[j][d] = cv.re[j] + cv.s * RSTD[r0 + j] * draw();
+      im[j][d] = cv.im[j] + cv.s * RSTD[r1 + j] * draw();
+    }
+  }
+  const out = { reLo: [], reHi: [], imLo: [], imHi: [] };
+  for (let j = 0; j < NF; j++) {
+    re[j].sort(); im[j].sort();
+    out.reLo.push(quantile(re[j], 0.025)); out.reHi.push(quantile(re[j], 0.975));
+    out.imLo.push(quantile(im[j], 0.025)); out.imHi.push(quantile(im[j], 0.975));
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ formatting
+const SUP = { "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" };
+const sup = n => String(n).split("").map(ch => SUP[ch] || ch).join("");
+function sci(v, digits = 3) {
+  if (!isFinite(v)) return "–";
+  if (v === 0) return "0";
+  const p = Math.floor(Math.log10(Math.abs(v)));
+  return (v / 10 ** p).toFixed(digits - 1) + " × 10" + sup(p);
+}
+const fmt = (v, d) => Number(v).toFixed(d);
+function niceTicks(lo, hi, count) {
+  const span = hi - lo || Math.abs(hi) || 1, raw = span / count, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= count + 0.5);
+  const t = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) t.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+  return { ticks: t, step };
+}
+
+// ------------------------------------------------------------------ inputs
+const state = {};
+const sliders = {};
+function sliderSpec(name) {
+  const o = INFO[name];
+  if (name === "g_factor") return { min: Math.log(0.5), max: Math.log(2.0), step: 0.001, log: true };
+  if (name === "L_x") return { min: 10, max: 120, step: 0.5 };
+  if (name === "L_y") return { min: 10, max: 80, step: 0.5 };
+  const pad = 0.25 * (o.max - o.min);
+  return { min: Math.max(0.5, Math.floor((o.min - pad) * 2) / 2), max: Math.ceil((o.max + pad) * 2) / 2, step: 0.05 };
+}
+function makeSlider(name, label, host, extra) {
+  const sp = sliderSpec(name), o = INFO[name];
+  const input = document.createElement("input");
+  input.type = "range"; input.id = "in-" + name; input.min = sp.min; input.max = sp.max; input.step = sp.step;
+  const toPos = v => sp.log ? Math.log(v) : v, fromPos = p => sp.log ? Math.exp(p) : p;
+  const pct = v => 100 * (toPos(v) - sp.min) / (sp.max - sp.min);
+  input.style.setProperty("--lo", pct(o.min) + "%");
+  input.style.setProperty("--hi", pct(o.max) + "%");
+  input.setAttribute("aria-label", label);
+  const out = document.createElement("output");
+  out.className = "val"; out.htmlFor = input.id;
+  input.addEventListener("input", () => { state[name] = fromPos(+input.value); clearHoldout(); schedule(); });
+  sliders[name] = { input, out, set: v => { input.value = toPos(v); }, extra };
+  host.append(input, out);
+}
+function buildInputs() {
+  const strata = document.getElementById("strata");
+  D.strata.forEach(([s, vs], i) => {
+    const name = NAMES[i], row = document.createElement("div");
+    row.className = "srow";
+    row.innerHTML = `<span class="sw" id="sw-${s}"></span><span class="sname"><label for="in-${name}">${s}</label><span id="vs-${s}">${vs}</span></span>`;
+    strata.append(row);
+    makeSlider(name, `Thickness of stratum ${s}`, row);
+  });
+  const g = document.getElementById("g-row");
+  g.innerHTML = `<label for="in-g_factor">Stiffness g</label>`;
+  makeSlider("g_factor", "Stiffness factor g", g);
+  const lx = document.getElementById("lx-row"), ly = document.getElementById("ly-row");
+  lx.innerHTML = `<label for="in-L_x">Length L<sub>x</sub></label>`;
+  ly.innerHTML = `<label for="in-L_y">Width L<sub>y</sub></label>`;
+  makeSlider("L_x", "Raft length along x", lx);
+  makeSlider("L_y", "Raft width along y", ly);
+  const presets = document.getElementById("presets");
+  for (const [id, [a, b]] of Object.entries(MESHES)) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "chip"; btn.dataset.mesh = id; btn.textContent = `${a} × ${b} m`;
+    btn.addEventListener("click", () => { state.L_x = a; state.L_y = b; syncSliders(); clearHoldout(); schedule(); });
+    presets.append(btn);
+  }
+  document.getElementById("reset").addEventListener("click", () => {
+    NAMES.slice(0, 8).forEach(n => { state[n] = INFO[n].nominal; });
+    syncSliders(); clearHoldout(); schedule();
+  });
+  const sel = document.getElementById("holdout"), hint = document.getElementById("holdout-hint");
+  if (!HO) {
+    sel.innerHTML = `<option value="">Not included in this copy</option>`; sel.disabled = true;
+    hint.textContent = "Build the viewer with the dataset available to include the held-out MISS3D simulations.";
+  } else {
+    let html = `<option value="">Free inputs (no simulation)</option>`;
+    const groups = {};
+    HO.case.forEach((c, i) => { (groups[HO.mesh[i]] = groups[HO.mesh[i]] || []).push(i); });
+    for (const [mesh, idx] of Object.entries(groups)) {
+      const [a, b] = MESHES[mesh] || ["?", "?"];
+      html += `<optgroup label="${a} × ${b} m raft">`;
+      for (const i of idx) {
+        const x = HO.X.subarray(i * 10, i * 10 + 10);
+        let H = 0; for (let j = 0; j < 7; j++) H += x[j];
+        html += `<option value="${i}">${HO.case[i].split("_")[1]} · soil depth ${fmt(H, 1)} m · g ${fmt(x[7], 2)}</option>`;
+      }
+      html += `</optgroup>`;
+    }
+    sel.innerHTML = html;
+    hint.textContent = `${HO.n} simulations held out of training: 32 random soils on each footprint. Choosing one sets every input to its values.`;
+    sel.addEventListener("change", () => {
+      if (sel.value === "") { holdout = null; schedule(); return; }
+      const i = +sel.value;
+      NAMES.forEach((n, j) => { state[n] = HO.X[i * 10 + j]; });
+      holdout = i; syncSliders(); schedule();
+    });
+  }
+}
+let holdout = null;
+function clearHoldout() {
+  if (holdout === null) return;
+  holdout = null;
+  document.getElementById("holdout").value = "";
+}
+function syncSliders() { NAMES.forEach(n => sliders[n].set(state[n])); }
+
+// ------------------------------------------------------------------ drawings: soil column and raft plan
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function hexRgb(h) {
+  if (h.startsWith("#")) { const v = parseInt(h.slice(1), 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }
+  const m = h.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [128, 128, 128];
+}
+function rampColor(vs) {                    // shear-wave velocity -> colour, stops at 400 / 800 / 1200 / 1700 m/s
+  const stops = [400, 800, 1200, 1700], cols = [0, 1, 2, 3].map(i => hexRgb(cssVar("--ramp-" + i)));
+  const v = Math.min(Math.max(vs, stops[0]), stops[3]);
+  let i = 0; while (i < 2 && v > stops[i + 1]) i++;
+  const f = (v - stops[i]) / (stops[i + 1] - stops[i]);
+  const c = cols[i].map((a, k) => Math.round(a + f * (cols[i + 1][k] - a)));
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+function drawColumn() {
+  const svg = document.getElementById("column"), W = svg.clientWidth || 104, H = 330;
+  const top = 8, bottom = H - 8, x0 = 30, x1 = W - 4;
+  const thick = NAMES.slice(0, 7).map(n => state[n]), total = thick.reduce((a, b) => a + b, 0);
+  const depthMax = Math.max(140, Math.ceil((total + 12) / 20) * 20), y = z => top + (bottom - top) * z / depthMax;
+  const sq = Math.sqrt(state.g_factor);
+  let s = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch-line" x1="0" y1="0" x2="0" y2="6"></line></pattern></defs>`;
+  for (let z = 0; z <= depthMax; z += 20) {
+    s += `<line class="col-tick" x1="${x0 - 4}" y1="${y(z)}" x2="${x0}" y2="${y(z)}"></line><text x="${x0 - 6}" y="${y(z) + 3.5}" text-anchor="end">${z}</text>`;
+  }
+  let z = 0;
+  D.strata.forEach(([name, vs], i) => {
+    const col = rampColor(vs * sq), y0 = y(z), y1 = y(z + thick[i]);
+    s += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${Math.max(y1 - y0, 0.5)}" style="fill: ${col}" class="col-line"></rect>`;
+    if (y1 - y0 > 13) s += `<text x="${(x0 + x1) / 2}" y="${(y0 + y1) / 2 + 3.5}" text-anchor="middle" style="fill: var(--ink)">${name}</text>`;
+    document.getElementById("sw-" + name).style.background = col;
+    document.getElementById("vs-" + name).textContent = `Vs ${Math.round(vs * sq)}`;
+    z += thick[i];
+  });
+  s += `<rect class="col-rock" x="${x0}" y="${y(total)}" width="${x1 - x0}" height="${Math.max(bottom - y(total), 0)}"></rect>`;
+  if (bottom - y(total) > 14) s += `<text x="${(x0 + x1) / 2}" y="${(y(total) + bottom) / 2 + 3.5}" text-anchor="middle" style="fill: var(--ink)">${D.bedrock[0]}</text>`;
+  s += `<text x="2" y="${top + 3}" text-anchor="start">m</text>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = s;
+  svg.setAttribute("aria-label", `Soil column: ${fmt(total, 1)} m of soil over bedrock ${D.bedrock[0]} (Vs ${D.bedrock[1]} m/s)`);
+}
+function drawPlan() {
+  const svg = document.getElementById("plan"), W = svg.clientWidth || 340, H = 170, pad = 22;
+  const ext = [125, 85], sc = Math.min((W - 2 * pad) / ext[0], (H - 2 * pad) / ext[1]);
+  const cx = W / 2, cy = H / 2 - 4;
+  const rect = (a, b, cls) => `<rect class="${cls}" x="${cx - a * sc / 2}" y="${cy - b * sc / 2}" width="${a * sc}" height="${b * sc}"></rect>`;
+  let s = "";
+  const seen = new Set();
+  for (const [a, b] of D.meta.footprints_trained || []) { const key = a + "x" + b; if (!seen.has(key)) { seen.add(key); s += rect(a, b, "plan-line"); } }
+  s += rect(state.L_x, state.L_y, "plan-raft");
+  const ax = 14, ay = H - 10;
+  s += `<path class="plan-axis" d="M${ax} ${ay} h22 m-4 -3 l4 3 l-4 3 M${ax} ${ay} v-22 m-3 4 l3 -4 l3 4"></path>`;
+  s += `<text x="${ax + 26}" y="${ay + 3.5}">x</text><text x="${ax - 3}" y="${ay - 26}">y</text>`;
+  s += `<text x="${W - 4}" y="${H - 6}" text-anchor="end" style="fill: var(--accent)">${fmt(state.L_x, 1)} × ${fmt(state.L_y, 1)} m</text>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = s;
+  document.querySelectorAll("#presets .chip").forEach(b => {
+    const [a, c] = MESHES[b.dataset.mesh];
+    b.setAttribute("aria-pressed", String(Math.abs(state.L_x - a) < 0.01 && Math.abs(state.L_y - c) < 0.01));
+  });
+}
+
+// ------------------------------------------------------------------ charts
+const chartData = [null, null];
+function drawChart(i) {
+  const cd = chartData[i]; if (!cd) return;
+  const svg = document.getElementById("chart-" + i), W = svg.clientWidth || 600, H = svg.clientHeight || 210;
+  const L = 52, R = 10, T = 10, B = 26, pw = W - L - R, ph = H - T - B;
+  const vals = [...cd.y, ...(cd.lo || []), ...(cd.hi || []), ...(cd.truth || [])].filter(isFinite);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (lo > 0 && lo < 0.35 * hi) lo = 0;
+  if (hi < 0 && hi > 0.35 * lo) hi = 0;
+  const padv = 0.06 * (hi - lo || Math.abs(hi) || 1); lo -= padv; hi += padv;
+  const p = Math.floor(Math.log10(Math.max(Math.abs(lo), Math.abs(hi)) || 1)), u = 10 ** p;
+  const yt = niceTicks(lo / u, hi / u, 5);
+  let dec = 0;
+  while (dec < 6 && Math.abs(Math.round(yt.step * 10 ** dec) - yt.step * 10 ** dec) > 1e-6) dec++;
+  const sx = f => L + pw * f / 15, sy = v => T + ph * (1 - (v - lo) / (hi - lo));
+  let s = "";
+  for (const t of yt.ticks) {
+    const yy = sy(t * u); if (yy < T - 0.5 || yy > T + ph + 0.5) continue;
+    s += `<line class="grid-line" x1="${L}" x2="${L + pw}" y1="${yy}" y2="${yy}"></line><text x="${L - 6}" y="${yy + 3.5}" text-anchor="end">${t.toFixed(dec)}</text>`;
+  }
+  for (let f = 0; f <= 15; f += 3) s += `<line class="grid-line" x1="${sx(f)}" x2="${sx(f)}" y1="${T}" y2="${T + ph}"></line><text x="${sx(f)}" y="${H - 8}" text-anchor="middle">${f}</text>`;
+  if (cd.lo) {
+    let d = "";
+    F.forEach((f, j) => { d += (j ? "L" : "M") + sx(f).toFixed(1) + " " + sy(cd.hi[j]).toFixed(1); });
+    for (let j = NF - 1; j >= 0; j--) d += "L" + sx(F[j]).toFixed(1) + " " + sy(cd.lo[j]).toFixed(1);
+    s += `<path class="band" d="${d}Z"></path>`;
+  }
+  let d = ""; F.forEach((f, j) => { d += (j ? "L" : "M") + sx(f).toFixed(1) + " " + sy(cd.y[j]).toFixed(1); });
+  s += `<path class="line" d="${d}"></path>`;
+  if (cd.truth) F.forEach((f, j) => { s += `<circle class="truth" cx="${sx(f).toFixed(1)}" cy="${sy(cd.truth[j]).toFixed(1)}" r="2.7"></circle>`; });
+  s += `<line class="axis" x1="${L}" x2="${L + pw}" y1="${T + ph}" y2="${T + ph}"></line>`;
+  if (cd.hover != null) {
+    const j = cd.hover;
+    s += `<line class="cursor" x1="${sx(F[j])}" x2="${sx(F[j])}" y1="${T}" y2="${T + ph}"></line><circle class="dot" cx="${sx(F[j])}" cy="${sy(cd.y[j])}" r="4"></circle>`;
+  }
+  s += `<rect class="hit" x="${L}" y="${T}" width="${pw}" height="${ph}"></rect>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = s;
+  svg.setAttribute("aria-label", `${cd.label} of ${cd.term} against frequency, 0 to 15 Hz`);
+  const unitTxt = `${cd.label} [10${sup(p)} ${cd.unit}], frequency [Hz]`;
+  const rd = document.getElementById("read-" + i);
+  if (cd.hover == null) { rd.innerHTML = unitTxt; return; }
+  const j = cd.hover;
+  let t = `f = <b>${F[j].toFixed(2)} Hz</b> · ${cd.label} = <b>${sci(cd.y[j])}</b> ${cd.unit}`;
+  if (cd.lo) t += ` (95 %: ${sci(cd.lo[j])} to ${sci(cd.hi[j])})`;
+  if (cd.truth) t += ` · MISS3D <b>${sci(cd.truth[j])}</b>`;
+  rd.innerHTML = t;
+}
+function hookChart(i) {
+  const svg = document.getElementById("chart-" + i);
+  const move = ev => {
+    const cd = chartData[i]; if (!cd) return;
+    const r = svg.getBoundingClientRect(), W = r.width, L = 52, R = 10, pw = W - L - R;
+    const f = 15 * (ev.clientX - r.left - L) / pw;
+    let best = 0; F.forEach((v, j) => { if (Math.abs(v - f) < Math.abs(F[best] - f)) best = j; });
+    chartData[0] && (chartData[0].hover = best); chartData[1] && (chartData[1].hover = best);
+    drawChart(0); drawChart(1);
+  };
+  svg.addEventListener("pointermove", move);
+  svg.addEventListener("pointerdown", move);
+  svg.addEventListener("pointerleave", () => { chartData.forEach(c => c && (c.hover = null)); drawChart(0); drawChart(1); });
+}
+
+// ------------------------------------------------------------------ render
+let selected = 0, frame = 0;
+function schedule() { if (!frame) frame = requestAnimationFrame(() => { frame = 0; render(); }); }
+function truthCurve(i, k) {
+  const W = NT * 2 * NF, base = i * W + 2 * k * NF;
+  return { re: Array.from(HO.Y.subarray(base, base + NF)), im: Array.from(HO.Y.subarray(base + NF, base + 2 * NF)) };
+}
+function curveError(pred, tr) {             // 100 max_f |dK| / max_f |K|
+  let num = 0, den = 0;
+  for (let j = 0; j < NF; j++) {
+    num = Math.max(num, Math.hypot(pred.re[j] - tr.re[j], pred.im[j] - tr.im[j]));
+    den = Math.max(den, Math.hypot(tr.re[j], tr.im[j]));
+  }
+  return 100 * num / den;
+}
+function render() {
+  const v = NAMES.map(n => state[n]);
+  const t0 = performance.now();
+  const g = gp(v);
+  const t1 = performance.now();
+  const curves = D.terms.map((_, k) => termCurve(g.mean, k));
+  const bd = band(g, selected);
+  const t2 = performance.now();
+
+  // inputs readouts
+  NAMES.forEach(n => {
+    const o = INFO[n], val = state[n], out = sliders[n].out;
+    const outside = val < o.min - 1e-9 || val > o.max + 1e-9;
+    out.innerHTML = n === "g_factor" ? `×${fmt(val, 2)}` : `${fmt(val, 1)} m`;
+    out.style.color = outside ? "var(--warn)" : "";
+  });
+  drawColumn(); drawPlan();
+
+  // status
+  const warn = NAMES.filter(n => state[n] < INFO[n].min - 1e-9 || state[n] > INFO[n].max + 1e-9);
+  const label = n => n === "g_factor" ? "g" : n.replace("t_", "").replace("L_x", "Lx").replace("L_y", "Ly");
+  let st = warn.length
+    ? warn.map(n => `<span class="pill warn">${label(n)} outside the training range (${fmt(INFO[n].min, n === "g_factor" ? 2 : 1)}–${fmt(INFO[n].max, n === "g_factor" ? 2 : 1)})</span>`).join("")
+    : `<span class="pill ok">Inside the training range</span>`;
+  if (warn.length) st += `<span class="hint">The model is extrapolating: watch the band.</span>`;
+  st += `<span class="timing">prediction ${fmt(t2 - t0, 0)} ms in your browser · one MISS3D run: 20 s to 7 min</span>`;
+  document.getElementById("status").innerHTML = st;
+
+  // table
+  const showErr = holdout !== null && HO;
+  document.getElementById("thead").innerHTML =
+    `<th>Term</th><th>Motion</th><th class="num">Static Re K</th><th>Unit</th><th class="num">95 % band, static</th>` +
+    (showErr ? `<th class="num">vs MISS3D</th>` : "");
+  const rows = D.terms.map((t, k) => {
+    const s = curves[k].s, z = Z95 * g.std[k], rel = 100 * (Math.exp(z) - 1);
+    let err = "";
+    if (showErr) {
+      const e = curveError(curves[k], truthCurve(holdout, k));
+      err = `<td class="num ${e < 3 ? "err-good" : e < 8 ? "err-mid" : "err-bad"}">${fmt(e, 1)} %</td>`;
+    }
+    return `<tr tabindex="0" data-k="${k}" aria-selected="${k === selected}"><td class="term">${termLabel(t)}</td><td class="motion">${TERM_INFO[t][0]}</td>` +
+      `<td class="num">${sci(s)}</td><td>${TERM_INFO[t][1]}</td><td class="num">±${fmt(rel, rel < 0.1 ? 3 : rel < 1 ? 2 : rel < 10 ? 1 : 0)} %</td>${err}</tr>`;
+  });
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = rows.join("");
+
+  // charts
+  const term = D.terms[selected], unit = TERM_INFO[term][1], tc = curves[selected];
+  const tr = showErr ? truthCurve(holdout, selected) : null;
+  document.getElementById("chart-title").textContent = `${termLabel(term)} · ${TERM_INFO[term][0]}`;
+  document.getElementById("key-truth").hidden = !tr;
+  const hov = chartData[0] ? chartData[0].hover : null;
+  chartData[0] = { y: Array.from(tc.re), lo: bd.reLo, hi: bd.reHi, truth: tr && tr.re, label: "Re K", unit, term: termLabel(term), hover: hov };
+  chartData[1] = { y: Array.from(tc.im), lo: bd.imLo, hi: bd.imHi, truth: tr && tr.im, label: "Im K", unit, term: termLabel(term), hover: hov };
+  drawChart(0); drawChart(1);
+}
+document.getElementById("tbody").addEventListener("click", ev => {
+  const tr = ev.target.closest("tr[data-k]"); if (!tr) return;
+  selected = +tr.dataset.k; schedule();
+});
+document.getElementById("tbody").addEventListener("keydown", ev => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const tr = ev.target.closest("tr[data-k]"); if (!tr) return;
+  ev.preventDefault(); selected = +tr.dataset.k; render();
+  const again = document.querySelector(`#tbody tr[data-k="${selected}"]`); again && again.focus();
+});
+
+// ------------------------------------------------------------------ model card
+function card() {
+  const m = D.meta, tr = m.training || {}, ho = m.holdout || {};
+  const facts = [`<b>${(m.n_train || N).toLocaleString("en-GB")}</b> training cases`];
+  if (ho.err_mean != null) facts.push(`hold-out error <b>${fmt(ho.err_mean, 1)} %</b> mean`);
+  if (ho.band95_coverage != null) facts.push(`95 % band holds <b>${fmt(100 * ho.band95_coverage, 1)} %</b> of hold-out values`);
+  facts.push(`<b>${NG}</b> Gaussian processes`);
+  document.getElementById("facts").innerHTML = facts.map(f => `<span class="fact">${f}</span>`).join("");
+  document.getElementById("n-gp").textContent = NG;
+  const fp = (m.footprints_trained || []).filter(([a, b]) => a >= b).map(([a, b]) => `${a} × ${b}`).join(", ");
+  const dl = (rows) => rows.filter(r => r[1] != null && r[1] !== "").map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  document.getElementById("train-dl").innerHTML = dl([
+    ["Simulations", tr.n_soils_per_footprint ? `${tr.n_soils_per_footprint} soils × 5 footprints, plus each turned by 90°` : null],
+    ["Training cases", (m.n_train || N).toLocaleString("en-GB")],
+    ["Footprints", fp ? fp + " m" : null],
+    ["Frequencies", `${F.length}, ${F[0]}–${F[NF - 1]} Hz`],
+    ["Engine", tr.engine ? `${tr.engine}` : m.engine],
+    ["Fit time", tr.fit_s ? `${Math.round(tr.fit_s)} s on ${tr.device}` : null],
+    ["Built", m.created ? `${m.created}${m.git_commit ? " (" + m.git_commit + ")" : ""}` : null],
+  ]);
+  const terms = ho.err_95th ? Object.entries(ho.err_95th).map(([t, e]) => `${termLabel(t)} ${fmt(e, 1)}`).join(" · ") : null;
+  document.getElementById("test-dl").innerHTML = ho.n_cases ? dl([
+    ["Test set", `${ho.n_cases} simulations never used in training (32 random soils per footprint)`],
+    ["Error metric", "largest deviation over 0.45–15 Hz, as a share of the curve's largest |K|"],
+    ["Mean error", `${fmt(ho.err_mean, 2)} %`],
+    ["Worst term", `${fmt(ho.err_worst, 1)} % (95 % of soils do better)`],
+    ["Per term, 95th percentile", terms ? terms + " %" : null],
+    ["95 % band", ho.band95_coverage != null ? `contains ${fmt(100 * ho.band95_coverage, 1)} % of the simulated values` : null],
+    ["Prediction", ho.predict_ms_per_case ? `${fmt(ho.predict_ms_per_case, 2)} ms per case in Python` : null],
+  ]) : `<dt>Test</dt><dd>No test summary stored with this model.</dd>`;
+}
+
+// for the browser console and tests: impedanceSurrogate.predict([t_L1, ..., t_L7, g, L_x, L_y])
+window.impedanceSurrogate = { inputs: NAMES, terms: D.terms, freqs: F,
+  predict: v => { const g = gp(v); return { gp: g, curves: D.terms.map((_, k) => termCurve(g.mean, k)) }; } };
+
+// ------------------------------------------------------------------ start
+NAMES.forEach(n => { state[n] = INFO[n].nominal; });
+buildInputs(); syncSliders(); card(); hookChart(0); hookChart(1); render();
+if (window.ResizeObserver) new ResizeObserver(() => { drawChart(0); drawChart(1); drawPlan(); }).observe(document.getElementById("charts"));
+const mq = window.matchMedia("(prefers-color-scheme: dark)");
+mq.addEventListener && mq.addEventListener("change", render);
+new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>

@@ -1,0 +1,16 @@
+{
+  "dataset": "v1",
+  "description": "Imaginary seven-layer site (layers L1-L7 over bedrock, Vs rounded to 100 m/s). Inputs: 7 stratum thicknesses + one shear-modulus factor applied to all soil strata (bedrock fixed). Settings v1: no sub-layering, 0.2-33.2 Hz at 0.25 Hz.",
+  "site": "inputs/site_v1.csv",
+  "meshes": "inputs/meshes.csv",
+  "template": "templates/miss_impedance_shallow.comm",
+  "freq_min": 0.2,
+  "freq_max": 33.2,
+  "freq_step": 0.25,
+  "g_factor_min": 0.6667,
+  "g_factor_max": 1.5,
+  "n_train": 128,
+  "n_test": 32,
+  "seed": 2026,
+  "substratum_thickness": 100.0
+}
